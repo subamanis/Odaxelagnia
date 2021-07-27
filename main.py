@@ -1,5 +1,7 @@
+import threading
+from time import sleep
+
 from selenium import webdriver
-from selenium.webdriver.edge.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from typing import Callable, Any, List
 
@@ -10,25 +12,43 @@ PAGE_URL = 'https://s37-en.bitefight.gameforge.com/profile'
 
 
 class Action:
-    def __init__(self, func: Callable[[WebDriver], None], optional_sub_category: Any, amount: int):
+    def __init__(self, func: Callable[[], None], optional_sub_category: Any, amount: int):
         self.func = func
         self.optional_sub_category = optional_sub_category
         self.amount = amount
 
     def execute(self):
-        self.func(driver)
+        self.func()
 
 
 driver = webdriver.Edge(executable_path=EDGE_DRIVER_PATH)
 actions: List[Action] = []
+thread_exit_condition = False
 
 
 def run():
-    show_actions()
-    get_input()
-    actions[0].execute()
+    tasks_thread = threading.Thread(target=execute_actions)
+    tasks_thread.start()
+
+    while 1:
+        show_actions()
+        if not get_input():
+            global thread_exit_condition
+            thread_exit_condition = True
+            break
+    # actions[0].execute()
     # driver.get(PAGE_URL)
-    # login(driver)
+    # login()
+
+
+def execute_actions():
+    global thread_exit_condition
+    while not thread_exit_condition:
+        if actions:
+            actions.pop().execute()
+        else:
+            sleep(1)
+    print("thread yok")
 
 
 def show_actions():
@@ -39,15 +59,20 @@ def show_actions():
           '3. Graveyard (1 = 15mins)\n')
 
 
-def get_input():
-    action = validate_and_transform(input('Give me: ').strip().split(' '))
-    if action is None:
-        print('Nope')
-        exit(1)
-    actions.append(action)
+def get_input() -> bool:
+    user_input = input('Give me: ').strip()
+    if user_input == '0':
+        print("ya")
+        return False
+
+    action = validate_and_transform(user_input.split(' '))
+    if action is not None:
+        actions.append(action)
+
+    return True
 
 
-def validate_and_transform(input_list: List[str]) :
+def validate_and_transform(input_list: List[str]):
     if len(input_list) < 2 or len(input_list) > 3:
         return None
 
@@ -71,7 +96,7 @@ def validate_and_transform(input_list: List[str]) :
         return Action(func, int_list[1], int_list[2])
 
 
-def login(driver: WebDriver):
+def login():
     try:
         username_field = driver.find_element_by_name('user')
     except Exception:
@@ -87,20 +112,20 @@ def fill_input(_input: WebElement, text: str):
     _input.send_keys(text)
 
 
-def get_action(x: int) -> Callable[[WebDriver], None]:
+def get_action(x: int) -> Callable[[], None]:
     if x > 2:
         return login
     else:
         return action1
 
 
-def action1(driver: WebDriver):
+def action1():
     print('actionn1111111')
 
-def action2(driver: WebDriver):
+def action2():
     print('actionn2222')
 
-def action3(driver: WebDriver):
+def action3():
     print('actionn333333')
 
 
