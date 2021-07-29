@@ -35,8 +35,8 @@ class AspectID(Enum):
 
 class StoryActionRepository:
     def __init__(self):
-        self.actions: Dict[str, AspectID] = {
-            'fdffdf': AspectID.BEAST
+        self.actions: Dict[str, (AspectID, int)] = {
+            'fdffdf': (AspectID.BEAST,1)
         }
 
 
@@ -44,6 +44,7 @@ driver = webdriver.Edge(executable_path=EDGE_DRIVER_PATH)
 actions: List[Action] = []
 thread_exit_condition = False
 aspect_value_dict: Dict[AspectID, int] = dict()
+actionRepository = StoryActionRepository()
 
 
 def run():
@@ -56,9 +57,22 @@ def run():
             global thread_exit_condition
             thread_exit_condition = True
             break
+
     # actions[0].execute()
     # driver.get(PAGE_URL)
     # login()
+
+
+def save_user_details():
+    while 1:
+        username = input('Give me the username: ')
+        password = input('Give me the password: ')
+        result = input('Are those details correct?\nusername: {}\npassword:{}\n\n(y/n):'.format(username,password))
+        if result == 'y':
+            break
+        else:
+            print('Lets try again then\n')
+
 
 
 def execute_actions():
@@ -132,13 +146,6 @@ def fill_input(_input: WebElement, text: str):
     _input.send_keys(text)
 
 
-def get_action(x: int) -> Callable[[], None]:
-    if x > 2:
-        return login
-    else:
-        return action1
-
-
 def action1():
     print('actionn1111111')
 
@@ -147,6 +154,17 @@ def action2():
 
 def action3():
     print('actionn333333')
+
+def start_story():
+    btn_txt = ['dfd','dsd','ddd']
+    max_value_action_index = 0
+    max_value_action_value = 0
+    for (i,txt) in btn_txt:
+        (aspect,num) = actionRepository.actions[txt]
+        value = aspect_value_dict[aspect] * num
+        if value > max_value_action_value:
+            max_value_action_index = i
+
 
 
 if __name__ == '__main__':
