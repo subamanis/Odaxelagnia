@@ -1,9 +1,10 @@
 import threading
 from time import sleep
+from enum import Enum
 
 from selenium import webdriver
 from selenium.webdriver.remote.webelement import WebElement
-from typing import Callable, Any, List
+from typing import Callable, Any, List, Dict
 
 USERNAME = 'petros21'
 PASSWORD = 'Smallville21'
@@ -21,9 +22,28 @@ class Action:
         self.func()
 
 
+class AspectID(Enum):
+    HUMAN = 'Human'
+    KNOWLEDGE = 'Knowledge'
+    ORDER = 'Order'
+    NATURE = 'Nature'
+    BEAST = 'Beast'
+    DESTRUCTION = 'Destruction'
+    CHAOS = 'Chaos'
+    CORRUPTION = 'Corruption'
+
+
+class StoryActionRepository:
+    def __init__(self):
+        self.actions: Dict[str, AspectID] = {
+            'fdffdf': AspectID.BEAST
+        }
+
+
 driver = webdriver.Edge(executable_path=EDGE_DRIVER_PATH)
 actions: List[Action] = []
 thread_exit_condition = False
+aspect_value_dict: Dict[AspectID, int] = dict()
 
 
 def run():
