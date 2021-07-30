@@ -174,23 +174,24 @@ def read_aspect_values_from_file() -> Dict[Aspect, int]:
 driver = webdriver.Edge(executable_path=EDGE_DRIVER_PATH)
 actions: List[Action] = []
 thread_exit_condition = False
-# aspect_value_dict: Dict[Aspect, int] = read_values_from_file()
-# actionRepository: Dict[str, StoryAction] = {
-#         'aaa': StatsAction(Aspect.BEAST, 1, Implication.NONE, [Outcome.MONEY]),
-#         'bbb': NeutralAction(Implication.BATTLE, [Outcome.MONEY, Outcome.MONEY]),
-# }
 
 
 def run():
+    print('Initializing...')
     account = read_or_make_user_account()
     aspect_value_dict = read_or_rank_aspect_values()
     actionRepository = create_action_repository()
 
+    print('Logging in...')
+    driver.get(account.page_url)
+    if login(account):
+        print('Success\n')
+    else:
+        print('Unable to log in. Terminating.')
+        exit(1)
+
     tasks_thread = threading.Thread(target=execute_actions)
     tasks_thread.start()
-
-    driver.get(account.page_url)
-    login(account)
 
     while 1:
         show_actions()
@@ -200,7 +201,43 @@ def run():
             break
 
 
-def create_action_repository():
+def login(account: Account) -> bool:
+    try:
+        username_field = driver.find_element_by_name('user')
+    except Exception:
+        return False
+
+    fill_input(username_field, account.username)
+    fill_input(driver.find_element_by_name('pass'), account.password)
+
+    try:
+        driver.find_element_by_class_name('btn-small').click()
+    except NoSuchElementException:
+        try:
+            driver.find_element_by_name('login').click()
+        except NoSuchElementException:
+            return False
+
+    try:
+        driver.find_element_by_class_name('error')
+        return False
+    except NoSuchElementException:
+        return True
+
+
+def start_story(actionRepository: Dict[str, StoryAction], aspect_value_dict: Dict[Aspect, int]):
+    btn_txt = ['dfd','dsd','ddd']
+    max_value_action_index = -1
+    max_value_action_value = 0
+    for (i,txt) in btn_txt:
+        storyAction = actionRepository[txt]
+        if storyAction.implication.is_satisfied():
+            value = storyAction.calculate_value(aspect_value_dict)
+            if value > max_value_action_value:
+                max_value_action_index = i
+
+
+def create_action_repository() -> Dict[str,StoryAction]:
     return {
         'aaa': StatsAction(Aspect.BEAST, 1, Implication.NONE, [Outcome.MONEY]),
         'bbb': NeutralAction(Implication.BATTLE, [Outcome.MONEY, Outcome.MONEY]),
@@ -340,14 +377,14 @@ def execute_actions():
 
 def show_actions():
     print('format: <action_num> <optional_sub_category_num> <amount_num>')
-    print('1. Hunt\n'
-          '       1. ManHunt 2. Village 3. Small Town 4. City\n'
+    print('1. ManHunt\n'
+          '       1. Farm 2. Village 3. Small Town 4. City 5. Metropolis\n'
           '2. Story (1 = 40 story actions)\n'
           '3. Graveyard (1 = 15mins)\n')
 
 
 def get_input() -> bool:
-    user_input = input('Give me: ').strip()
+    user_input = input('Select an action: ').strip()
     if user_input == '0':
         print("ya")
         return False
@@ -383,22 +420,6 @@ def validate_and_transform(input_list: List[str]):
         return Action(func, int_list[1], int_list[2])
 
 
-def login(account: Account):
-    print('Logging in...')
-    try:
-        username_field = driver.find_element_by_name('user')
-    except Exception:
-        return
-
-    fill_input(username_field, account.username)
-    fill_input(driver.find_element_by_name('pass'), account.password)
-
-    try:
-        driver.find_element_by_class_name('btn-small').click()
-    except NoSuchElementException:
-        driver.find_element_by_name('login').click()
-
-
 def get_HP() -> int:
     return 23
 
@@ -421,21 +442,7 @@ def action2():
 def action3():
     print('actionn333333')
 
-def start_story(actionRepository, aspect_value_dict: Dict[Aspect, int]):
-    btn_txt = ['dfd','dsd','ddd']
-    max_value_action_index = -1
-    max_value_action_value = 0
-    for (i,txt) in btn_txt:
-        storyAction = actionRepository[txt]
-        if storyAction.implication.is_satisfied():
-            value = storyAction.calculate_value(aspect_value_dict)
-            if value > max_value_action_value:
-                max_value_action_index = i
 
-
-
-
-# def are_implications_satisfied(impl: Implication):
 
 
 
