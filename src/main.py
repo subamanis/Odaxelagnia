@@ -14,7 +14,7 @@ from selenium.webdriver.remote.webelement import WebElement
 
 ACCOUNT_DETAILS_FILE_NAME = 'accountDetails.txt'
 ASPECTS_FILE_NAME = 'aspects.txt'
-EDGE_DRIVER_PATH = 'msedgedriver.exe'
+EDGE_DRIVER = 'msedgedriver.exe'
 
 
 class Account:
@@ -36,6 +36,46 @@ class Action:
 
     def execute(self):
         self.func()
+
+
+class TimeUnit(Enum):
+    SECONDS = 1,
+    MINUTES = 60,
+    HOURS   = 3600
+
+
+class FinishCondition(metaclass=abc.ABCMeta):
+    def __init__(self, amount: int):
+        self.amount = amount
+
+    @abc.abstractmethod
+    def is_satisfied(self, curr_amount: int) -> bool:
+        pass
+
+
+class AmountCondition(FinishCondition):
+    def __init__(self, amount: int):
+        super().__init__(amount)
+
+    def is_satisfied(self, curr_amount: int) -> bool:
+        return curr_amount >= self.amount
+
+
+class HealthGuard(FinishCondition):
+    def __init__(self, amount: int):
+        super().__init__(amount)
+
+    def is_satisfied(self, curr_amount: int) -> bool:
+        return curr_amount <= self.amount
+
+
+class TimeLimit(FinishCondition):
+    def is_satisfied(self, curr_amount: int) -> bool:
+        pass
+
+    def __init__(self, amount: int, unit: TimeUnit):
+        super().__init__(amount)
+        self.unit = unit
 
 
 class Aspect(Enum):
@@ -171,7 +211,7 @@ def read_aspect_values_from_file() -> Dict[Aspect, int]:
     return value_dict
 
 
-driver = webdriver.Edge(executable_path=EDGE_DRIVER_PATH)
+driver = webdriver.Edge(executable_path=EDGE_DRIVER)
 actions: List[Action] = []
 thread_exit_condition = False
 
