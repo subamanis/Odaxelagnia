@@ -2,9 +2,9 @@ import threading
 import abc
 
 from time import sleep
-from enum import Enum
 from os import path
 from pathlib import Path
+from enum import Enum
 from typing import Callable, Any, List, Dict
 
 from selenium import webdriver
@@ -12,30 +12,10 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.remote.webelement import WebElement
 
 
-ACCOUNT_DETAILS_FILE_NAME = 'accountDetails.txt'
-ASPECTS_FILE_NAME = 'aspects.txt'
-EDGE_DRIVER = 'msedgedriver.exe'
-
-
-class Account:
-    def __init__(self, county: int, username: str, password: str):
-        self.county = county
-        self.username = username
-        self.password = password
-        self.page_url = self.__create_page_url()
-
-    def __create_page_url(self) -> str:
-        return 'https://s' + str(self.county) + '-en.bitefight.gameforge.com/profile'
-
-
-class Action:
-    def __init__(self, func: Callable[[], None], optional_sub_category: Any, amount: int):
-        self.func = func
-        self.optional_sub_category = optional_sub_category
-        self.amount = amount
-
-    def execute(self):
-        self.func()
+class Difficulty(Enum):
+    EASY = 1,
+    MEDIUM = 2,
+    DIFFICULT = 3
 
 
 class TimeUnit(Enum):
@@ -44,38 +24,20 @@ class TimeUnit(Enum):
     HOURS   = 3600
 
 
-class FinishCondition(metaclass=abc.ABCMeta):
-    def __init__(self, amount: int):
-        self.amount = amount
-
-    @abc.abstractmethod
-    def is_satisfied(self, curr_amount: int) -> bool:
-        pass
-
-
-class AmountCondition(FinishCondition):
-    def __init__(self, amount: int):
-        super().__init__(amount)
-
-    def is_satisfied(self, curr_amount: int) -> bool:
-        return curr_amount >= self.amount
+class Outcome(Enum):
+    DAMAGE = -1,
+    NONE = 0,
+    BOOTY = 1,
+    EXPERIENCE = 2,
+    MONEY = 3,
 
 
-class HealthGuard(FinishCondition):
-    def __init__(self, amount: int):
-        super().__init__(amount)
-
-    def is_satisfied(self, curr_amount: int) -> bool:
-        return curr_amount <= self.amount
-
-
-class TimeLimit(FinishCondition):
-    def is_satisfied(self, curr_amount: int) -> bool:
-        pass
-
-    def __init__(self, amount: int, unit: TimeUnit):
-        super().__init__(amount)
-        self.unit = unit
+class ManHuntTarget(Enum):
+    FARM = 1,
+    VILLAGE = 2,
+    SMALL_TOWN = 3,
+    CITY = 4,
+    METROPOLIS = 5
 
 
 class Aspect(Enum):
@@ -124,22 +86,92 @@ class Implication(Enum):
             return True
 
 
-class Outcome(Enum):
-    DAMAGE = -1,
-    NONE = 0,
-    BOOTY = 1,
-    EXPERIENCE = 2,
-    MONEY = 3,
+
+class Account:
+    def __init__(self, county: int, username: str, password: str):
+        self.county = county
+        self.username = username
+        self.password = password
+        self.page_url = self.__create_page_url()
+
+    def __create_page_url(self) -> str:
+        return 'https://s' + str(self.county) + '-en.bitefight.gameforge.com/profile'
 
 
-class ActionSpecifications:
-    def __init__(self, aspect: Aspect, amount: int, implication: Implication):
-        self.aspect = aspect
+
+class FinishCondition(metaclass=abc.ABCMeta):
+    def __init__(self, amount: int):
         self.amount = amount
-        self.implication = implication
+
+    @abc.abstractmethod
+    def is_satisfied(self, curr_amount: int) -> bool:
+        pass
 
 
-class StoryAction(metaclass=abc.ABCMeta):
+class AmountCondition(FinishCondition):
+    def __init__(self, amount: int):
+        super().__init__(amount)
+
+    def is_satisfied(self, curr_amount: int) -> bool:
+        return curr_amount >= self.amount
+
+
+class HealthGuard(FinishCondition):
+    def __init__(self, amount: int):
+        super().__init__(amount)
+
+    def is_satisfied(self, curr_amount: int) -> bool:
+        return curr_amount <= self.amount
+
+
+class TimeLimit(FinishCondition):
+    def __init__(self, amount: int, unit: TimeUnit):
+        super().__init__(amount)
+        self.unit = unit
+
+    def is_satisfied(self, curr_amount: int) -> bool:
+        pass
+
+
+
+class Action(metaclass=abc.ABCMeta):
+    def __init__(self, finish_condition: FinishCondition):
+        self.finish_condition = finish_condition
+
+    @abc.abstractmethod
+    def execute(self):
+        pass
+
+
+class ManHuntAction(Action):
+    def __init__(self, target: ManHuntTarget, finish_condition: FinishCondition):
+        super().__init__(finish_condition)
+        self.target = target
+
+    def execute(self):
+        pass
+
+
+class GrottoAction(Action):
+    def __init__(self, difficulty: Difficulty, finish_condition: FinishCondition):
+        super().__init__(finish_condition)
+        self.difficulty = difficulty
+
+    def execute(self):
+        pass
+
+
+class GraveyardAction(Action):
+    def execute(self):
+        pass
+
+class TavernAction(Action):
+    def execute(self):
+        pass
+
+
+
+class StoryChoice(metaclass=abc.ABCMeta):
     def __init__(self, implication: Implication, outcomes: List[Outcome]):
         self.implication = implication
         self.outcomes = outcomes
@@ -162,7 +194,7 @@ class StoryAction(metaclass=abc.ABCMeta):
         return value
 
 
-class StatsAction(StoryAction):
+class StatsChoice(StoryChoice):
     def __init__(self, aspect: Aspect, amount: int, implication: Implication, outcomes: List[Outcome]):
         super().__init__(implication, outcomes)
         self.aspect = aspect
@@ -172,7 +204,7 @@ class StatsAction(StoryAction):
         return self.calculate_outcomes_value() + (aspect_value_dict[self.aspect] * self.amount)
 
 
-class NeutralAction(StoryAction):
+class NeutralChoice(StoryChoice):
     def __init__(self, implication: Implication, outcomes: List[Outcome]):
         super().__init__(implication, outcomes)
 
@@ -180,37 +212,10 @@ class NeutralAction(StoryAction):
         return self.calculate_outcomes_value()
 
 
-def read_aspect_values_from_file() -> Dict[Aspect, int]:
-    value_dict = dict()
 
-    def fill_with(aspect: Aspect, _value: int):
-        value_dict[aspect] = value
-        value_dict[aspect.opposite()] = -value
-
-    value = 25
-    with open('files/'+ASPECTS_FILE_NAME, mode='r') as f:
-        line = f.readline().strip()
-        if line == Aspect.HUMAN.name:
-            fill_with(Aspect.HUMAN, value)
-        elif line == Aspect.BEAST.name:
-            fill_with(Aspect.BEAST, value)
-        elif line == Aspect.DESTRUCTION.name:
-            fill_with(Aspect.DESTRUCTION, value)
-        elif line == Aspect.KNOWLEDGE.name:
-            fill_with(Aspect.KNOWLEDGE, value)
-        elif line == Aspect.ORDER.name:
-            fill_with(Aspect.ORDER, value)
-        elif line == Aspect.CHAOS.name:
-            fill_with(Aspect.CHAOS, value)
-        elif line == Aspect.CORRUPTION.name:
-            fill_with(Aspect.CORRUPTION, value)
-        elif line == Aspect.NATURE.name:
-            fill_with(Aspect.NATURE, value)
-        value -= 5
-
-    return value_dict
-
-
+ACCOUNT_DETAILS_FILE_NAME = 'accountDetails.txt'
+ASPECTS_FILE_NAME = 'aspects.txt'
+EDGE_DRIVER = 'msedgedriver.exe'
 driver = webdriver.Edge(executable_path=EDGE_DRIVER)
 actions: List[Action] = []
 thread_exit_condition = False
@@ -234,8 +239,7 @@ def run():
     tasks_thread.start()
 
     while 1:
-        show_actions()
-        if not get_input():
+        if not get_new_action():
             global thread_exit_condition
             thread_exit_condition = True
             break
@@ -265,7 +269,7 @@ def login(account: Account) -> bool:
         return True
 
 
-def start_story(actionRepository: Dict[str, StoryAction], aspect_value_dict: Dict[Aspect, int]):
+def start_story(actionRepository: Dict[str, StoryChoice], aspect_value_dict: Dict[Aspect, int]):
     btn_txt = ['dfd','dsd','ddd']
     max_value_action_index = -1
     max_value_action_value = 0
@@ -277,10 +281,10 @@ def start_story(actionRepository: Dict[str, StoryAction], aspect_value_dict: Dic
                 max_value_action_index = i
 
 
-def create_action_repository() -> Dict[str,StoryAction]:
+def create_action_repository() -> Dict[str, StoryChoice]:
     return {
-        'aaa': StatsAction(Aspect.BEAST, 1, Implication.NONE, [Outcome.MONEY]),
-        'bbb': NeutralAction(Implication.BATTLE, [Outcome.MONEY, Outcome.MONEY]),
+        'aaa': StatsChoice(Aspect.BEAST, 1, Implication.NONE, [Outcome.MONEY]),
+        'bbb': NeutralChoice(Implication.BATTLE, [Outcome.MONEY, Outcome.MONEY]),
     }
 
 
@@ -398,6 +402,38 @@ def rank_aspect_values():
                 f.write('\n')
 
 
+
+def read_aspect_values_from_file() -> Dict[Aspect, int]:
+    value_dict = dict()
+
+    def fill_with(aspect: Aspect, _value: int):
+        value_dict[aspect] = value
+        value_dict[aspect.opposite()] = -value
+
+    value = 25
+    with open('files/'+ASPECTS_FILE_NAME, mode='r') as f:
+        line = f.readline().strip()
+        if line == Aspect.HUMAN.name:
+            fill_with(Aspect.HUMAN, value)
+        elif line == Aspect.BEAST.name:
+            fill_with(Aspect.BEAST, value)
+        elif line == Aspect.DESTRUCTION.name:
+            fill_with(Aspect.DESTRUCTION, value)
+        elif line == Aspect.KNOWLEDGE.name:
+            fill_with(Aspect.KNOWLEDGE, value)
+        elif line == Aspect.ORDER.name:
+            fill_with(Aspect.ORDER, value)
+        elif line == Aspect.CHAOS.name:
+            fill_with(Aspect.CHAOS, value)
+        elif line == Aspect.CORRUPTION.name:
+            fill_with(Aspect.CORRUPTION, value)
+        elif line == Aspect.NATURE.name:
+            fill_with(Aspect.NATURE, value)
+        value -= 5
+
+    return value_dict
+
+
 def read_or_rank_aspect_values() -> Dict[Aspect, int]:
     if not path.exists('files/' + ASPECTS_FILE_NAME):
         rank_aspect_values()
@@ -415,49 +451,76 @@ def execute_actions():
     print("thread yok")
 
 
-def show_actions():
-    print('format: <action_num> <optional_sub_category_num> <amount_num>')
-    print('1. ManHunt\n'
-          '       1. Farm 2. Village 3. Small Town 4. City 5. Metropolis\n'
-          '2. Story (1 = 40 story actions)\n'
-          '3. Graveyard (1 = 15mins)\n')
+def get_new_action() -> bool:
+    while 1:
+        print('1) ManHunt   2) Grotto   3) Story   4) Graveyard   5) Idle   0) Exit')
+        user_in = input('choose an action: ')
+
+        if user_in.isnumeric():
+            user_in = int(user_in)
+        else:
+            print('Input must be a number.\n')
+            continue
+
+        if 0 > user_in > 5:
+            print('Input must be between 0 and 5.\n')
+            continue
+
+        if user_in == 0:
+            return False
+        elif user_in == 1:
+            manhunt = take_manhunt_input()
+            if manhunt is None:
+                continue
+            else:
+                actions.append(manhunt)
+        elif user_in == 2:
+            grotto = take_grotto_input()
+            if grotto is None:
+                continue
+            else:
+                actions.append(grotto)
+        elif user_in == 3:
+            story = take_story_input()
+            if story is None:
+                continue
+            else:
+                actions.append(story)
+        elif user_in == 4:
+            graveyard = take_graveyard_input()
+            if graveyard is None:
+                continue
+            else:
+                actions.append(graveyard)
+        elif user_in == 5:
+            idle = take_idle_input()
+            if idle is None:
+                continue
+            else:
+                actions.append(idle)
+
+        return True
 
 
-def get_input() -> bool:
-    user_input = input('Select an action: ').strip()
-    if user_input == '0':
-        print("ya")
-        return False
-
-    action = validate_and_transform(user_input.split(' '))
-    if action is not None:
-        actions.append(action)
-
-    return True
+def take_manhunt_input():
+    pass
 
 
-def validate_and_transform(input_list: List[str]):
-    if len(input_list) < 2 or len(input_list) > 3:
-        return None
+def take_grotto_input():
+    pass
 
-    try:
-        int_list = [int(x) for x in input_list]
-    except ValueError:
-        return None
 
-    if int_list[0] == 1:
-        func = action1
-    elif int_list[0] == 2:
-        func = action2
-    elif int_list[0] == 3:
-        func = action3
-    else:
-        return None
+def take_story_input():
+    pass
 
-    if len(int_list) == 2:
-        return Action(func, None, int_list[1])
-    else:
-        return Action(func, int_list[1], int_list[2])
+
+def take_graveyard_input():
+    pass
+
+
+def take_idle_input():
+    #every action will have its own finish conditions!
+    pass
 
 
 def get_HP() -> int:
@@ -471,18 +534,6 @@ def get_AP() -> int:
 def fill_input(_input: WebElement, text: str):
     _input.click()
     _input.send_keys(text)
-
-
-def action1():
-    print('actionn1111111')
-
-def action2():
-    print('actionn2222')
-
-def action3():
-    print('actionn333333')
-
-
 
 
 
