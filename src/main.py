@@ -4,7 +4,7 @@ import abc
 from time import sleep
 from os import path
 from pathlib import Path
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import Callable, Any, List, Dict
 
 from selenium import webdriver
@@ -12,16 +12,10 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.remote.webelement import WebElement
 
 
-class Difficulty(Enum):
+class Difficulty(IntEnum):
     EASY = 1,
     MEDIUM = 2,
     DIFFICULT = 3
-
-
-class TimeUnit(Enum):
-    SECONDS = 1,
-    MINUTES = 60,
-    HOURS   = 3600
 
 
 class Outcome(Enum):
@@ -32,7 +26,7 @@ class Outcome(Enum):
     MONEY = 3,
 
 
-class ManHuntTarget(Enum):
+class ManHuntTarget(IntEnum):
     FARM = 1,
     VILLAGE = 2,
     SMALL_TOWN = 3,
@@ -99,76 +93,47 @@ class Account:
 
 
 
-class FinishCondition(metaclass=abc.ABCMeta):
-    def __init__(self, amount: int):
-        self.amount = amount
-
-    @abc.abstractmethod
-    def is_satisfied(self, curr_amount: int) -> bool:
-        pass
-
-
-class AmountCondition(FinishCondition):
-    def __init__(self, amount: int):
-        super().__init__(amount)
-
-    def is_satisfied(self, curr_amount: int) -> bool:
-        return curr_amount >= self.amount
-
-
-class HealthGuard(FinishCondition):
-    def __init__(self, amount: int):
-        super().__init__(amount)
-
-    def is_satisfied(self, curr_amount: int) -> bool:
-        return curr_amount <= self.amount
-
-
-class TimeLimit(FinishCondition):
-    def __init__(self, amount: int, unit: TimeUnit):
-        super().__init__(amount)
-        self.unit = unit
-
-    def is_satisfied(self, curr_amount: int) -> bool:
-        pass
-
-
-
 class Action(metaclass=abc.ABCMeta):
-    def __init__(self, finish_condition: FinishCondition):
-        self.finish_condition = finish_condition
-
     @abc.abstractmethod
     def execute(self):
         pass
 
 
 class ManHuntAction(Action):
-    def __init__(self, target: ManHuntTarget, finish_condition: FinishCondition):
-        super().__init__(finish_condition)
+    def __init__(self, target: ManHuntTarget, amount: int):
         self.target = target
 
     def execute(self):
-        pass
+        print('ManHuuuuunt')
 
 
 class GrottoAction(Action):
-    def __init__(self, difficulty: Difficulty, finish_condition: FinishCondition):
-        super().__init__(finish_condition)
+    def __init__(self, difficulty: Difficulty, amount: int):
         self.difficulty = difficulty
 
     def execute(self):
-        pass
+        print('Grottooooo')
 
 
 class GraveyardAction(Action):
+    def __init__(self, amount: int):
+        self.amount = amount
+
     def execute(self):
         pass
+
 
 class TavernAction(Action):
+    def __init__(self, amount: int):
+        self.amount = amount
+
     def execute(self):
         pass
 
+
+class HealAction(Action):
+    def execute(self):
+        pass
 
 
 class StoryChoice(metaclass=abc.ABCMeta):
@@ -239,7 +204,9 @@ def run():
     tasks_thread.start()
 
     while 1:
-        if not get_new_action():
+        if get_new_action():
+            print('Action queued!\n')
+        else:
             global thread_exit_condition
             thread_exit_condition = True
             break
@@ -453,7 +420,7 @@ def execute_actions():
 
 def get_new_action() -> bool:
     while 1:
-        print('1) ManHunt   2) Grotto   3) Story   4) Graveyard   5) Idle   0) Exit')
+        print('1) ManHunt   2) Grotto   3) Story   4) Graveyard   5) Heal   0) Exit')
         user_in = input('choose an action: ')
 
         if user_in.isnumeric():
@@ -462,7 +429,7 @@ def get_new_action() -> bool:
             print('Input must be a number.\n')
             continue
 
-        if 0 > user_in > 5:
+        if user_in < 0 or user_in > 5:
             print('Input must be between 0 and 5.\n')
             continue
 
@@ -481,46 +448,78 @@ def get_new_action() -> bool:
             else:
                 actions.append(grotto)
         elif user_in == 3:
-            story = take_story_input()
-            if story is None:
-                continue
-            else:
-                actions.append(story)
+            actions.append(take_tavern_input())
         elif user_in == 4:
-            graveyard = take_graveyard_input()
-            if graveyard is None:
-                continue
-            else:
-                actions.append(graveyard)
+            actions.append(take_graveyard_input())
         elif user_in == 5:
-            idle = take_idle_input()
-            if idle is None:
-                continue
-            else:
-                actions.append(idle)
+            actions.append(HealAction())
 
         return True
 
 
 def take_manhunt_input():
-    pass
+    while 1:
+        msg = '  1) Farm   2) Village   3) Small Town   4) City   5) Metropolis   0) Cancel\n' \
+                      '  Choose category: '
+
+        result = get_int_inputs(msg, 5)
+        if result is None:
+            print('  Invalid input\n')
+            continue
+
+        return ManHuntAction(ManHuntTarget(result[0]), result[1])
 
 
 def take_grotto_input():
-    pass
+    while 1:
+        msg = '  1) {}   2) {}   3) {}   0) Cancel\n' \
+                           '  Choose difficulty: '.format(Difficulty.EASY.name, Difficulty.MEDIUM.name,
+                                                          Difficulty.DIFFICULT.name)
+        result = get_int_inputs(msg, 3)
+        if result is None:
+            print('  Invalid input\n')
+            continue
+
+        return GrottoAction(Difficulty(result[0]), result[1])
 
 
-def take_story_input():
-    pass
+def take_tavern_input():
+    while 1:
+        amount = input('How many? ').strip()
+
+        if not amount.isnumeric():
+            print('Invalid input')
+            continue
+
+        return TavernAction(int(amount))
 
 
 def take_graveyard_input():
-    pass
+    while 1:
+        amount = input('How many? ').strip()
+
+        if not amount.isnumeric():
+            print('Invalid input')
+            continue
+
+        return GraveyardAction(int(amount))
 
 
-def take_idle_input():
-    #every action will have its own finish conditions!
-    pass
+def get_int_inputs(msg: str, _max: int):
+    a = input(msg)
+    if not a.isnumeric():
+        return None
+
+    a = int(a)
+    if a < 0 or a > _max:
+        return None
+
+    amount = input('  How many? ').strip()
+    if not amount.isnumeric():
+        return None
+    amount = int(amount)
+
+    return a, amount
 
 
 def get_HP() -> int:
