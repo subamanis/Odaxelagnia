@@ -5,10 +5,10 @@ from time import sleep
 from os import path
 from pathlib import Path
 from enum import Enum, IntEnum
-from typing import Callable, Any, List, Dict
+from typing import List, Dict
 
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, NoSuchWindowException
 from selenium.webdriver.remote.webelement import WebElement
 
 
@@ -24,6 +24,12 @@ class Outcome(Enum):
     BOOTY = 1,
     EXPERIENCE = 2,
     MONEY = 3,
+
+
+class MenuButton(Enum):
+    OVERVIEW = None,
+    CITY = None,
+    HUNT = None
 
 
 class ManHuntTarget(IntEnum):
@@ -81,6 +87,36 @@ class Implication(Enum):
 
 
 
+class Result(metaclass=abc.ABCMeta):
+    def __init__(self, value=None):
+        self.value = value
+
+    @abc.abstractmethod
+    def is_ok(self) -> bool:
+        pass
+
+    @abc.abstractmethod
+    def is_err(self) -> bool:
+        pass
+
+
+class Ok(Result):
+    def is_ok(self) -> bool:
+        return True
+
+    def is_err(self) -> bool:
+        return False
+
+
+class Err(Result):
+    def is_ok(self) -> bool:
+        return False
+
+    def is_err(self) -> bool:
+        return True
+
+
+
 class Account:
     def __init__(self, county: int, username: str, password: str):
         self.county = county
@@ -102,17 +138,41 @@ class Action(metaclass=abc.ABCMeta):
 class ManHuntAction(Action):
     def __init__(self, target: ManHuntTarget, amount: int):
         self.target = target
+        self.amount = amount
+
+#NoSuchWindowException - decorator to catch this exception
 
     def execute(self):
-        print('ManHuuuuunt')
+        driver.find_element_by_link_text('Hunt').click()
+        driver.find_elements_by_class_name('mjs')[int(self.target)-1].click()
+
+        counter = 0
+        while counter < self.amount:
+            try:
+                while counter < self.amount:
+                    driver.find_element_by_xpath('//button[text()="Again "]').click()
+                    counter += 1
+            except NoSuchElementException:
+                driver.find_element_by_xpath('//a[text()="back"]').find_element_by_xpath('..').click()
+                driver.find_elements_by_class_name('mjs')[int(self.target) - 1].click()
+                counter += 1
 
 
 class GrottoAction(Action):
     def __init__(self, difficulty: Difficulty, amount: int):
         self.difficulty = difficulty
+        self.amount = amount
 
     def execute(self):
-        print('Grottooooo')
+        driver.find_element_by_link_text('City').click()
+        driver.find_element_by_link_text('Grotto').click()
+
+        hp_guard = 2000 + 1000*int(self.difficulty)
+        counter = 0
+        while counter < self.amount and get_HP() > hp_guard:
+            driver.find_elements_by_name('difficulty')[int(self.difficulty)-1].click()
+            driver.find_element_by_xpath('//a[text()="back"]').find_element_by_xpath('..').click()
+            counter += 1
 
 
 class GraveyardAction(Action):
@@ -133,7 +193,13 @@ class TavernAction(Action):
 
 class HealAction(Action):
     def execute(self):
-        pass
+        driver.find_element_by_link_text('City').click()
+        driver.find_element_by_link_text('Church').click()
+
+        try:
+            driver.find_element_by_name('heal').find_element_by_xpath('..').click()
+        except NoSuchElementException:
+            pass
 
 
 class StoryChoice(metaclass=abc.ABCMeta):
@@ -194,11 +260,15 @@ def run():
 
     print('Logging in...')
     driver.get(account.page_url)
-    if login(account):
+    login_result = login(account)
+    if login_result.is_ok():
         print('Success\n')
     else:
-        print('Unable to log in. Terminating.')
+        print(login_result.value)
+        print('Terminating.')
         exit(1)
+
+    accept_cookies()
 
     tasks_thread = threading.Thread(target=execute_actions)
     tasks_thread.start()
@@ -212,11 +282,11 @@ def run():
             break
 
 
-def login(account: Account) -> bool:
+def login(account: Account) -> Result:
     try:
         username_field = driver.find_element_by_name('user')
     except Exception:
-        return False
+        return Err('Login failed. Username field could not be found.')
 
     fill_input(username_field, account.username)
     fill_input(driver.find_element_by_name('pass'), account.password)
@@ -227,13 +297,17 @@ def login(account: Account) -> bool:
         try:
             driver.find_element_by_name('login').click()
         except NoSuchElementException:
-            return False
+            return Err('Login failed. Login button could not be found.')
 
     try:
-        driver.find_element_by_class_name('error')
-        return False
+        driver.find_element_by_id('loginName2')
+        return Err('Login failed. Credentials are incorrect.')
     except NoSuchElementException:
-        return True
+        return Ok()
+
+
+def accept_cookies():
+    driver.find_elements_by_class_name('cookiebanner5')[1].click()
 
 
 def start_story(actionRepository: Dict[str, StoryChoice], aspect_value_dict: Dict[Aspect, int]):
@@ -523,11 +597,27 @@ def get_int_inputs(msg: str, _max: int):
 
 
 def get_HP() -> int:
-    return 23
+    upper_bar_text = get_text_excluding_children(driver.find_element_by_class_name('gold'))
+    hp_text:str = upper_bar_text.strip().split('\n')[4].strip()
+    hp = hp_text[0 : hp_text.find('/')]
+    hp = hp.replace('.','')
+
+    return int(hp)
 
 
 def get_AP() -> int:
-    return 10
+    upper_bar_text = get_text_excluding_children(driver.find_element_by_class_name('gold'))
+    ap_text: str = upper_bar_text.strip().split('\n')[3].strip()
+    ap = ap_text[0: ap_text.find('/')]
+
+    return int(ap)
+
+def get_text_excluding_children(element):
+    return driver.execute_script("""
+    return jQuery(arguments[0]).contents().filter(function() {
+        return this.nodeType == Node.TEXT_NODE;
+    }).text();
+    """, element)
 
 
 def fill_input(_input: WebElement, text: str):
