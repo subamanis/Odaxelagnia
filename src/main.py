@@ -26,17 +26,11 @@ class Outcome(Enum):
     MONEY = 3,
 
 
-class MenuButton(Enum):
-    OVERVIEW = None,
-    CITY = None,
-    HUNT = None
-
-
 class ManHuntTarget(IntEnum):
-    FARM = 1,
-    VILLAGE = 2,
-    SMALL_TOWN = 3,
-    CITY = 4,
+    FARM = 1
+    VILLAGE = 2
+    SMALL_TOWN = 3
+    CITY = 4
     METROPOLIS = 5
 
 
@@ -128,10 +122,25 @@ class Account:
         return 'https://s' + str(self.county) + '-en.bitefight.gameforge.com/profile'
 
 
+def check_for_window(func):
+    def inner(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except NoSuchWindowException:
+            print('Browser window was manually closed. Terminating.')
+            global thread_exit_condition
+            thread_exit_condition = True
+            # sys.stdout.write('0')
+            # sys.stdout.flush()
+            # sys.stdin.read(0)
+            exit(1)
+
+    return inner
+
 
 class Action(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def execute(self):
+    def execute(self) -> Result:
         pass
 
 
@@ -142,20 +151,36 @@ class ManHuntAction(Action):
 
 #NoSuchWindowException - decorator to catch this exception
 
-    def execute(self):
+    @check_for_window
+    def execute(self) -> Result:
         driver.find_element_by_link_text('Hunt').click()
         driver.find_elements_by_class_name('mjs')[int(self.target)-1].click()
 
+        iterations = min(int(get_AP()/get_manhunt_target_cost(self.target)), self.amount)
         counter = 0
-        while counter < self.amount:
+        while counter < iterations:
             try:
-                while counter < self.amount:
-                    driver.find_element_by_xpath('//button[text()="Again "]').click()
+                while counter < iterations:
+                    driver.find_element_by_xpath('//button[text()="Again "]').click() #nusuchelement when no more AP?
                     counter += 1
             except NoSuchElementException:
                 driver.find_element_by_xpath('//a[text()="back"]').find_element_by_xpath('..').click()
                 driver.find_elements_by_class_name('mjs')[int(self.target) - 1].click()
                 counter += 1
+
+        if iterations != self.amount:
+            return Ok('Grotto action stopped after {} iterations due to low AP'.format(counter))
+        else:
+            return Ok('ManHunt action finished successfully.')
+
+
+def get_manhunt_target_cost(target: ManHuntTarget):
+    if target == ManHuntTarget.FARM or target == ManHuntTarget.VILLAGE:
+        return 1
+    if target == ManHuntTarget.SMALL_TOWN or ManHuntTarget.CITY:
+        return 2
+    if target == ManHuntTarget.METROPOLIS:
+        return 3
 
 
 class GrottoAction(Action):
@@ -163,23 +188,32 @@ class GrottoAction(Action):
         self.difficulty = difficulty
         self.amount = amount
 
-    def execute(self):
+    @check_for_window
+    def execute(self) -> Result:
         driver.find_element_by_link_text('City').click()
         driver.find_element_by_link_text('Grotto').click()
 
+        iterations = min(get_AP(),self.amount)
         hp_guard = 2000 + 1000*int(self.difficulty)
         counter = 0
-        while counter < self.amount and get_HP() > hp_guard:
+        while counter < iterations and get_HP() > hp_guard:
             driver.find_elements_by_name('difficulty')[int(self.difficulty)-1].click()
             driver.find_element_by_xpath('//a[text()="back"]').find_element_by_xpath('..').click()
             counter += 1
+
+        if iterations != self.amount:
+            return Ok('Grotto action stopped after {} iterations due to low AP'.format(counter))
+        elif counter != self.amount:
+            return Ok('Grotto action stopped after {} iterations due to low HP'.format(counter))
+        else:
+            return Ok('Grotto action finished successfully.')
 
 
 class GraveyardAction(Action):
     def __init__(self, amount: int):
         self.amount = amount
 
-    def execute(self):
+    def execute(self) -> Result:
         pass
 
 
@@ -187,7 +221,7 @@ class TavernAction(Action):
     def __init__(self, amount: int):
         self.amount = amount
 
-    def execute(self):
+    def execute(self) -> Result:
         pass
 
 
@@ -198,8 +232,9 @@ class HealAction(Action):
 
         try:
             driver.find_element_by_name('heal').find_element_by_xpath('..').click()
+            return Ok('Heal action performed successfully')
         except NoSuchElementException:
-            pass
+            return Err('Heal action failed due to insufficient AP')
 
 
 class StoryChoice(metaclass=abc.ABCMeta):
@@ -486,7 +521,8 @@ def execute_actions():
     global thread_exit_condition
     while not thread_exit_condition:
         if actions:
-            actions.pop().execute()
+            exec_result = actions.pop().execute()
+            print('\n',exec_result.value)
         else:
             sleep(1)
     print("thread yok")
