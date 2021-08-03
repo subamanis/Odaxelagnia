@@ -8,7 +8,7 @@ from enum import Enum, IntEnum
 from typing import List, Dict
 
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, NoSuchWindowException
+from selenium.common.exceptions import NoSuchElementException, NoSuchWindowException, WebDriverException
 from selenium.webdriver.remote.webelement import WebElement
 
 
@@ -126,14 +126,15 @@ def check_for_window(func):
     def inner(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except NoSuchWindowException:
-            print('Browser window was manually closed. Terminating.')
-            global thread_exit_condition
-            thread_exit_condition = True
+        except (NoSuchWindowException, WebDriverException):
+            # print('Browser window was manually closed. Terminating.')
+            # global thread_exit_condition
+            # thread_exit_condition = True
             # sys.stdout.write('0')
             # sys.stdout.flush()
             # sys.stdin.read(0)
-            exit(1)
+            # exit(1)
+            return Err('Browser window was manually closed. Terminating.')
 
     return inner
 
