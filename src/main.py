@@ -1,11 +1,12 @@
 import threading
 import abc
 
-from time import sleep
 from os import path
 from pathlib import Path
 from enum import Enum, IntEnum
+from time import sleep
 from typing import List, Dict
+from threading import Event
 
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, NoSuchWindowException, WebDriverException
@@ -127,15 +128,9 @@ def check_for_window(func):
         try:
             return func(*args, **kwargs)
         except (NoSuchWindowException, WebDriverException):
-            # print('Browser window was manually closed. Terminating.')
-            # global thread_exit_condition
-            # thread_exit_condition = True
-            # sys.stdout.write('0')
-            # sys.stdout.flush()
-            # sys.stdin.read(0)
-            # exit(1)
             return Err('Browser window was manually closed. Terminating.')
-
+        except Exception:
+            return Err('Terminating due to unexpected error.')
     return inner
 
 
@@ -149,8 +144,6 @@ class ManHuntAction(Action):
     def __init__(self, target: ManHuntTarget, amount: int):
         self.target = target
         self.amount = amount
-
-#NoSuchWindowException - decorator to catch this exception
 
     @check_for_window
     def execute(self) -> Result:
@@ -214,6 +207,7 @@ class GraveyardAction(Action):
     def __init__(self, amount: int):
         self.amount = amount
 
+    @check_for_window
     def execute(self) -> Result:
         pass
 
@@ -222,11 +216,13 @@ class TavernAction(Action):
     def __init__(self, amount: int):
         self.amount = amount
 
+    @check_for_window
     def execute(self) -> Result:
         pass
 
 
 class HealAction(Action):
+    @check_for_window
     def execute(self):
         driver.find_element_by_link_text('City').click()
         driver.find_element_by_link_text('Church').click()
@@ -235,7 +231,7 @@ class HealAction(Action):
             driver.find_element_by_name('heal').find_element_by_xpath('..').click()
             return Ok('Heal action performed successfully')
         except NoSuchElementException:
-            return Err('Heal action failed due to insufficient AP')
+            return Ok('Heal action failed due to insufficient AP')
 
 
 class StoryChoice(metaclass=abc.ABCMeta):
@@ -285,7 +281,6 @@ ASPECTS_FILE_NAME = 'aspects.txt'
 EDGE_DRIVER = 'msedgedriver.exe'
 driver = webdriver.Edge(executable_path=EDGE_DRIVER)
 actions: List[Action] = []
-thread_exit_condition = False
 
 
 def run():
@@ -306,16 +301,31 @@ def run():
 
     accept_cookies()
 
-    tasks_thread = threading.Thread(target=execute_actions)
+    exit_event = Event()
+    tasks_thread = threading.Thread(target=get_inputs, args=(exit_event,), daemon=True)
     tasks_thread.start()
 
-    while 1:
+    execute_actions(exit_event)
+
+
+def get_inputs(exit_event: Event):
+    while not exit_event.is_set():
         if get_new_action():
             print('Action queued!\n')
         else:
-            global thread_exit_condition
-            thread_exit_condition = True
+            exit_event.set()
             break
+
+
+def execute_actions(exit_event: Event):
+    while not exit_event.is_set():
+        if actions:
+            exec_result = actions.pop().execute()
+            print('\n',exec_result.value)
+            if exec_result.is_err():
+                exit_event.set()
+        else:
+            sleep(1)
 
 
 def login(account: Account) -> Result:
@@ -518,15 +528,6 @@ def read_or_rank_aspect_values() -> Dict[Aspect, int]:
     return read_aspect_values_from_file()
 
 
-def execute_actions():
-    global thread_exit_condition
-    while not thread_exit_condition:
-        if actions:
-            exec_result = actions.pop().execute()
-            print('\n',exec_result.value)
-        else:
-            sleep(1)
-    print("thread yok")
 
 
 def get_new_action() -> bool:
