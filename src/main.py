@@ -4,6 +4,7 @@ import abc
 from os import path
 from pathlib import Path
 from enum import Enum, IntEnum
+from queue import Queue
 from time import sleep
 from typing import List, Dict
 from threading import Event
@@ -151,7 +152,7 @@ class ManHuntAction(Action):
         driver.find_elements_by_class_name('mjs')[int(self.target)-1].click()
 
         iterations = min(int(get_AP()/get_manhunt_target_cost(self.target)), self.amount)
-        counter = 0
+        counter = 1
         while counter < iterations:
             try:
                 while counter < iterations:
@@ -280,7 +281,7 @@ ACCOUNT_DETAILS_FILE_NAME = 'accountDetails.txt'
 ASPECTS_FILE_NAME = 'aspects.txt'
 EDGE_DRIVER = 'msedgedriver.exe'
 driver = webdriver.Edge(executable_path=EDGE_DRIVER)
-actions: List[Action] = []
+actions: Queue[Action] = Queue()
 
 
 def run():
@@ -297,7 +298,7 @@ def run():
     else:
         print(login_result.value)
         print('Terminating.')
-        exit(1)
+        return
 
     accept_cookies()
 
@@ -320,7 +321,7 @@ def get_inputs(exit_event: Event):
 def execute_actions(exit_event: Event):
     while not exit_event.is_set():
         if actions:
-            exec_result = actions.pop().execute()
+            exec_result = actions.get().execute()
             print('\n',exec_result.value)
             if exec_result.is_err():
                 exit_event.set()
@@ -552,19 +553,19 @@ def get_new_action() -> bool:
             if manhunt is None:
                 continue
             else:
-                actions.append(manhunt)
+                actions.put(manhunt)
         elif user_in == 2:
             grotto = take_grotto_input()
             if grotto is None:
                 continue
             else:
-                actions.append(grotto)
+                actions.put(grotto)
         elif user_in == 3:
-            actions.append(take_tavern_input())
+            actions.put(take_tavern_input())
         elif user_in == 4:
-            actions.append(take_graveyard_input())
+            actions.put(take_graveyard_input())
         elif user_in == 5:
-            actions.append(HealAction())
+            actions.put(HealAction())
 
         return True
 
