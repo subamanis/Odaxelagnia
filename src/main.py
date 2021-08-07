@@ -6,7 +6,7 @@ from pathlib import Path
 from enum import Enum, IntEnum
 from queue import Queue
 from time import sleep
-from typing import List, Dict
+from typing import List, Dict, Optional
 from threading import Event
 
 from selenium import webdriver
@@ -26,6 +26,7 @@ class Outcome(Enum):
     BOOTY = 1,
     EXPERIENCE = 2,
     MONEY = 3,
+    DISCOVERY = 4
 
 
 class ManHuntTarget(IntEnum):
@@ -124,20 +125,36 @@ class Account:
         return 'https://s' + str(self.county) + '-en.bitefight.gameforge.com/profile'
 
 
+
 def check_for_window(func):
     def inner(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except (NoSuchWindowException, WebDriverException):
-            return Err('Browser window was manually closed. Terminating.')
-        except Exception:
-            return Err('Terminating due to unexpected error.')
+            return Err('Browser window was manually tampered with. Terminating.')
+        except Exception as e:
+            if debug_mode:
+                raise e
+            else:
+                return Err('Terminating due to unexpected error.')
     return inner
+
+
+def check_for_mission_window():
+    try:
+        driver.find_element_by_class_name('buttonOverlay')
+        driver.find_elements_by_class_name('btn')[1].click()
+    except NoSuchElementException:
+        pass
 
 
 class Action(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def execute(self) -> Result:
+        pass
+
+    @abc.abstractmethod
+    def __str__(self):
         pass
 
 
@@ -156,17 +173,22 @@ class ManHuntAction(Action):
         while counter < iterations:
             try:
                 while counter < iterations:
-                    driver.find_element_by_xpath('//button[text()="Again "]').click() #nusuchelement when no more AP?
+                    driver.find_element_by_xpath('//button[text()="Again "]').click()
+                    check_for_mission_window()
                     counter += 1
             except NoSuchElementException:
                 driver.find_element_by_xpath('//a[text()="back"]').find_element_by_xpath('..').click()
                 driver.find_elements_by_class_name('mjs')[int(self.target) - 1].click()
+                check_for_mission_window()
                 counter += 1
 
         if iterations != self.amount:
             return Ok('Grotto action stopped after {} iterations due to low AP'.format(counter))
         else:
             return Ok('ManHunt action finished successfully.')
+
+    def __str__(self):
+        return '{}({})'.format(self.target.name,self.amount)
 
 
 def get_manhunt_target_cost(target: ManHuntTarget):
@@ -193,6 +215,7 @@ class GrottoAction(Action):
         counter = 0
         while counter < iterations and get_HP() > hp_guard:
             driver.find_elements_by_name('difficulty')[int(self.difficulty)-1].click()
+            check_for_mission_window()
             driver.find_element_by_xpath('//a[text()="back"]').find_element_by_xpath('..').click()
             counter += 1
 
@@ -203,6 +226,9 @@ class GrottoAction(Action):
         else:
             return Ok('Grotto action finished successfully.')
 
+    def __str__(self):
+        return 'Grotto({}, {})'.format(self.difficulty.name,self.amount)
+
 
 class GraveyardAction(Action):
     def __init__(self, amount: int):
@@ -210,7 +236,16 @@ class GraveyardAction(Action):
 
     @check_for_window
     def execute(self) -> Result:
-        pass
+        driver.find_element_by_link_text('City').click()
+        driver.find_element_by_link_text('Graveyard').click()
+        for i in range(0,self.amount):
+            driver.find_element_by_name('dowork').click()
+            sleep((60 * 15) + 5)
+
+        return Ok('Graveyard action finished successfully.')
+
+    def __str__(self):
+        return 'Graveyard({})'.format(self.amount)
 
 
 class TavernAction(Action):
@@ -219,7 +254,25 @@ class TavernAction(Action):
 
     @check_for_window
     def execute(self) -> Result:
-        pass
+        if get_AP() < 3:
+            return Ok('Tavern Story action not performed due to low AP')
+
+        driver.find_element_by_link_text('City').click()
+        driver.find_element_by_link_text('Tavern').click()
+        driver.find_elements_by_class_name('buttonOverlay')[0].click()
+        driver.find_element_by_class_name('btn-right').click()
+
+        global actionRepository
+        for i in range(0,40):
+            choices = [txt for btn in driver.find_elements_by_class_name('btn_right')
+                           for txt in btn.find_element_by_xpath('.//*').text]
+
+            best_choice = max(choices, key=lambda a: actionRepository[a].calculate_value())
+            driver.find_element_by_link_text(best_choice).click()
+
+
+    def __str__(self):
+        return 'Tavern({})'.format(self.amount)
 
 
 class HealAction(Action):
@@ -234,6 +287,9 @@ class HealAction(Action):
         except NoSuchElementException:
             return Ok('Heal action failed due to insufficient AP')
 
+    def __str__(self):
+        return 'Heal'
+
 
 class StoryChoice(metaclass=abc.ABCMeta):
     def __init__(self, implication: Implication, outcomes: List[Outcome]):
@@ -241,7 +297,7 @@ class StoryChoice(metaclass=abc.ABCMeta):
         self.outcomes = outcomes
 
     @abc.abstractmethod
-    def calculate_value(self, aspect_value_dict: Dict[Aspect, int]) -> int:
+    def calculate_value(self) -> int:
         pass
 
     def calculate_outcomes_value(self) -> int:
@@ -264,7 +320,7 @@ class StatsChoice(StoryChoice):
         self.aspect = aspect
         self.amount = amount
 
-    def calculate_value(self, aspect_value_dict: Dict[Aspect, int]) -> int:
+    def calculate_value(self) -> int:
         return self.calculate_outcomes_value() + (aspect_value_dict[self.aspect] * self.amount)
 
 
@@ -272,7 +328,7 @@ class NeutralChoice(StoryChoice):
     def __init__(self, implication: Implication, outcomes: List[Outcome]):
         super().__init__(implication, outcomes)
 
-    def calculate_value(self, aspect_value_dict: Dict[Aspect, int]) -> int:
+    def calculate_value(self) -> int:
         return self.calculate_outcomes_value()
 
 
@@ -281,10 +337,17 @@ ACCOUNT_DETAILS_FILE_NAME = 'accountDetails.txt'
 ASPECTS_FILE_NAME = 'aspects.txt'
 EDGE_DRIVER = 'msedgedriver.exe'
 driver = webdriver.Edge(executable_path=EDGE_DRIVER)
+
+debug_mode: bool = True
+
 actions: Queue[Action] = Queue()
+aspect_value_dict = dict()
+actionRepository = dict()
 
 
 def run():
+    global aspect_value_dict, actionRepository
+
     print('Initializing...')
     account = read_or_make_user_account()
     aspect_value_dict = read_or_rank_aspect_values()
@@ -311,6 +374,8 @@ def run():
 
 def get_inputs(exit_event: Event):
     while not exit_event.is_set():
+        if not actions.empty():
+            print('Queued actions: ', ', '.join([str(a) for a in actions.queue]))
         if get_new_action():
             print('Action queued!\n')
         else:
@@ -357,7 +422,7 @@ def accept_cookies():
     driver.find_elements_by_class_name('cookiebanner5')[1].click()
 
 
-def start_story(actionRepository: Dict[str, StoryChoice], aspect_value_dict: Dict[Aspect, int]):
+def start_story():
     btn_txt = ['dfd','dsd','ddd']
     max_value_action_index = -1
     max_value_action_value = 0
@@ -371,8 +436,37 @@ def start_story(actionRepository: Dict[str, StoryChoice], aspect_value_dict: Dic
 
 def create_action_repository() -> Dict[str, StoryChoice]:
     return {
-        'aaa': StatsChoice(Aspect.BEAST, 1, Implication.NONE, [Outcome.MONEY]),
-        'bbb': NeutralChoice(Implication.BATTLE, [Outcome.MONEY, Outcome.MONEY]),
+        # 'Examine'                  : NeutralChoice(Implication.BATTLE, [Outcome.MONEY, Outcome.MONEY]),
+        'Examine'                  : StatsChoice(Aspect.KNOWLEDGE, 1, Implication.NONE, []),
+        'Investigate'                  : StatsChoice(Aspect.KNOWLEDGE, 2, Implication.NONE, []),
+        'Observe'                  : StatsChoice(Aspect.KNOWLEDGE, 2, Implication.NONE, []),
+        'Enter City'                  : StatsChoice(Aspect.HUMAN, 1, Implication.NONE, []),
+        'Rob City'                  : StatsChoice(Aspect.BEAST, 2, Implication.NONE, []),
+        'Rob'                  : StatsChoice(Aspect.BEAST, 1, Implication.NONE, []),
+        'Terrorise'                  : StatsChoice(Aspect.CHAOS, 1, Implication.NONE, []),
+        'Brave'                  : StatsChoice(Aspect.ORDER, 2, Implication.NONE, []),
+        'Accept'                  : StatsChoice(Aspect.NATURE, 1, Implication.NONE, []),
+        'Use chance'                  : StatsChoice(Aspect.KNOWLEDGE, 1, Implication.NONE, []),
+        'Ask for more'                  : StatsChoice(Aspect.CORRUPTION, 1, Implication.NONE, []),
+        'Hide'                  : StatsChoice(Aspect.NATURE, 1, Implication.NONE, []),
+        'Assassinate'                  : StatsChoice(Aspect.CORRUPTION, 1, Implication.NONE, []),
+        'Full attack'                  : StatsChoice(Aspect.BEAST, 1, Implication.NONE, []),
+        'Confront the enemy'                  : StatsChoice(Aspect.ORDER, 2, Implication.NONE, []),
+        'Set everything alight'                  : StatsChoice(Aspect.CHAOS, 2, Implication.NONE, []),
+        'Escort'                  : StatsChoice(Aspect.ORDER, 2, Implication.NONE, []),
+        'Beguile'                  : StatsChoice(Aspect.HUMAN, 1, Implication.NONE, []),
+        'Warn of dangers'                  : StatsChoice(Aspect.HUMAN, 2, Implication.NONE, []),
+        'Snoop'                  : StatsChoice(Aspect.BEAST, 1, Implication.NONE, []),
+        'Smash everything'                  : StatsChoice(Aspect.DESTRUCTION, 1, Implication.NONE, []),
+        'Throw a coin in'                  : StatsChoice(Aspect.KNOWLEDGE, 1, Implication.NONE, []),
+        'Look for coins'                  : StatsChoice(Aspect.CORRUPTION, 2, Implication.NONE, []),
+        'Party'                  : StatsChoice(Aspect.HUMAN, 2, Implication.NONE, []),
+        'Make some valuable booty' : NeutralChoice(Implication.NONE, [Outcome.MONEY, Outcome.BOOTY, Outcome.EXPERIENCE]),
+        'Look for a better path'                  : StatsChoice(Aspect.HUMAN, 1, Implication.NONE, []),
+        'Jump over it'                  : StatsChoice(Aspect.BEAST, 2, Implication.NONE, []),
+        'Mislead'                  : StatsChoice(Aspect.CORRUPTION, 1, Implication.NONE, []),
+        'Devour'                  : StatsChoice(Aspect.BEAST, 1, Implication.NONE, []),
+        'Talk'                  : StatsChoice(Aspect.KNOWLEDGE, 1, Implication.NONE, []),
     }
 
 
