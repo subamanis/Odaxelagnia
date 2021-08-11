@@ -681,11 +681,9 @@ def read_or_rank_aspect_values() -> Dict[Aspect, int]:
     return read_aspect_values_from_file()
 
 
-
-
 def get_new_action() -> bool:
     while 1:
-        print('1) ManHunt   2) Grotto   3) Story   4) Graveyard   5) Heal   0) Exit')
+        print('1) ManHunt   2) Grotto   3) Tavern   4) Graveyard   5) Heal   0) Exit')
         user_in = input('choose an action: ').strip()
 
         if user_in.isnumeric():
@@ -724,29 +722,62 @@ def get_new_action() -> bool:
 
 def take_manhunt_input():
     while 1:
-        msg = '  1) Farm   2) Village   3) Small Town   4) City   5) Metropolis   0) Cancel\n' \
-                      '  Choose category: '
+        target = input('  1) Farm   2) Village   3) Small Town   4) City   5) Metropolis   0) Cancel\n'
+                      '  Choose category: ').strip()
 
-        result = get_int_inputs(msg, 5)
-        if result is None:
+        if not target.isnumeric():
+            print('  Invalid input')
+            continue
+
+        target = int(target)
+        if target > 5:
             print('  Invalid input\n')
             continue
 
-        return ManHuntAction(ManHuntTarget(result[0]), result[1])
+        if target == 0:
+            print()
+            return None
+
+        amount = input('  How many? ').strip()
+        if not amount.isnumeric():
+            print('  Invalid input\n')
+            continue
+
+        if amount == '0':
+            print()
+            return None
+
+        return ManHuntAction(ManHuntTarget(target), int(amount))
 
 
 def take_grotto_input():
     while 1:
-        msg = '  1) {}   2) {}   3) {}   0) Cancel\n' \
+        difficulty = input('  1) {}   2) {}   3) {}   0) Cancel\n' 
                            '  Choose difficulty: '.format(Difficulty.EASY.name, Difficulty.MEDIUM.name,
-                                                          Difficulty.DIFFICULT.name)
-        result = get_int_inputs(msg, 3)
-        if result is None:
+                                                          Difficulty.DIFFICULT.name)).strip()
+        if not difficulty.isnumeric():
+            print('  Invalid input')
+            continue
+
+        difficulty = int(difficulty)
+        if difficulty > 3:
             print('  Invalid input\n')
             continue
 
-        #if you enter 0 as amount it crashes
-        return GrottoAction(Difficulty(result[0]), result[1])
+        if difficulty == 0:
+            print()
+            return None
+
+        amount = input('  How many? ').strip()
+        if not amount.isnumeric():
+            print('  Invalid input\n')
+            continue
+
+        if amount == '0':
+            print()
+            return None
+
+        return GrottoAction(Difficulty(difficulty),int(amount))
 
 
 def take_tavern_input():
@@ -769,23 +800,6 @@ def take_graveyard_input():
             continue
 
         return GraveyardAction(int(amount))
-
-
-def get_int_inputs(msg: str, _max: int):
-    a = input(msg).strip()
-    if not a.isnumeric():
-        return None
-
-    a = int(a)
-    if a < 0 or a > _max:
-        return None
-
-    amount = input('  How many? ').strip()
-    if not amount.isnumeric():
-        return None
-    amount = int(amount)
-
-    return a, amount
 
 
 def get_HP() -> int:
