@@ -609,7 +609,7 @@ def save_user_details():
 
 def save_browser_preference():
     while 1:
-        choice = input('1) Chrome   2) Edge   3) Firefox\n'
+        choice = input('\n1) Chrome   2) Edge   3) Firefox\n'
                        'Choose your browser preference: ').strip()
 
         _driver = None
