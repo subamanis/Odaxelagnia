@@ -1,3 +1,4 @@
+import os
 import threading
 import abc
 
@@ -11,7 +12,14 @@ from threading import Event
 
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, NoSuchWindowException, WebDriverException
+from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
+
+
+class Browser(Enum):
+    CHROME  = 'CHROME'
+    EDGE    = 'EDGE'
+    FIREFOX = 'FIREFOX'
 
 
 class Difficulty(IntEnum):
@@ -137,7 +145,7 @@ def check_for_window(func):
                 raise e
             else:
                 driver.quit()
-                return Err('Browser window was manually tampered with. Terminating.')
+                return Err('Browser window entered an invalid state. Terminating.')
         except Exception as e:
             if debug_mode:
                 raise e
@@ -384,14 +392,24 @@ class NeutralChoice(StoryChoice):
         return self.calculate_outcomes_value()
 
 
+def read_or_save_browser_preference():
+    if path.exists('files/'+BROWSER_CHOICE_FILE_NAME):
+        return read_browser_file()
+    else:
+        return save_browser_preference()
+
+
 
 ACCOUNT_DETAILS_FILE_NAME = 'accountDetails.txt'
 ASPECTS_FILE_NAME = 'aspects.txt'
+BROWSER_CHOICE_FILE_NAME = 'browser.txt'
 EDGE_DRIVER = 'msedgedriver.exe'
-CLICK_DELAY = 0.1
-driver = webdriver.Edge(executable_path=EDGE_DRIVER)
+CHROME_DRIVER = 'chromedriver.exe'
+FIREFOX_DRIVER = 'geckodriver.exe'
+CLICK_DELAY = 0.12
+driver: WebDriver
 
-debug_mode: bool = True
+debug_mode: bool = False
 
 actions: Queue[Action] = Queue()
 aspect_value_dict = dict()
@@ -399,12 +417,13 @@ actionRepository = dict()
 
 
 def run():
-    global aspect_value_dict, actionRepository
+    global aspect_value_dict, actionRepository, driver
 
     print('Initializing...')
     account = read_or_make_user_account()
     aspect_value_dict = read_or_rank_aspect_values()
     actionRepository = create_action_repository()
+    driver = read_or_save_browser_preference()
 
     print('Logging in...')
     driver.get(account.page_url)
@@ -447,7 +466,7 @@ def execute_actions(exit_event: Event):
         else:
             sleep(1)
 
-
+@check_for_window
 def login(account: Account) -> Result:
     try:
         username_field = driver.find_element_by_name('user')
@@ -529,7 +548,11 @@ def create_action_repository() -> Dict[str, StoryChoice]:
 
 def read_or_make_user_account():
     if path.exists('files/'+ACCOUNT_DETAILS_FILE_NAME):
-        return read_account_from_file()
+        try:
+            return read_account_from_file()
+        except Exception:
+            print('Account details file has invalid data. Lets overwrite it')
+            return save_user_details()
     else:
         return save_user_details()
 
@@ -539,6 +562,9 @@ def read_account_from_file():
         county = int(f.readline().strip())
         username = f.readline().strip()
         password = f.readline().strip()
+
+    if not username or not password:
+        raise Exception
 
     return Account(county, username, password)
 
@@ -578,6 +604,50 @@ def save_user_details():
         f.write('\n')
 
     return Account(county, username, password)
+
+
+
+def save_browser_preference():
+    while 1:
+        choice = input('1) Chrome   2) Edge   3) Firefox\n'
+                       'Choose your browser preference: ').strip()
+
+        _driver = None
+        browser = None
+        if choice == '1':
+            _driver = webdriver.Chrome(CHROME_DRIVER)
+            browser = Browser.CHROME
+        elif choice == '2':
+            _driver = webdriver.Edge(EDGE_DRIVER)
+            browser = Browser.EDGE
+        elif choice == '3':
+            _driver = webdriver.Firefox(FIREFOX_DRIVER)
+            browser = Browser.FIREFOX
+        else:
+            print('Invalid input. Try again.\n')
+            continue
+        break
+
+    with open('files/' + BROWSER_CHOICE_FILE_NAME, mode='w') as f:
+        f.write(str(browser.value))
+
+    return _driver
+
+
+def read_browser_file():
+    with open('files/' + BROWSER_CHOICE_FILE_NAME, mode='r') as f:
+        browser = f.readline().strip()
+
+    if browser == str(Browser.CHROME.value):
+        return webdriver.Chrome(CHROME_DRIVER)
+    elif browser == str(Browser.EDGE.value):
+        return webdriver.Edge(EDGE_DRIVER)
+    elif browser == str(Browser.FIREFOX.value):
+        return webdriver.Firefox(FIREFOX_DRIVER)
+    else:
+        print('Browser preference file has invalid data. Lets overwrite it\n')
+        os.remove('files/'+BROWSER_CHOICE_FILE_NAME)
+        return save_browser_preference()
 
 
 def rank_aspect_values():
@@ -671,6 +741,9 @@ def read_aspect_values_from_file() -> Dict[Aspect, int]:
                 fill_with(Aspect.NATURE, value)
             value -= 5
 
+    if len(value_dict) != 8:
+        raise Exception
+
     return value_dict
 
 
@@ -678,7 +751,12 @@ def read_or_rank_aspect_values() -> Dict[Aspect, int]:
     if not path.exists('files/' + ASPECTS_FILE_NAME):
         rank_aspect_values()
 
-    return read_aspect_values_from_file()
+    try:
+        return read_aspect_values_from_file()
+    except Exception:
+        print('Aspect preferences file has invalid data. Lets overwrite it')
+        rank_aspect_values()
+        return read_aspect_values_from_file()
 
 
 def get_new_action() -> bool:
