@@ -1,6 +1,6 @@
 # Odaxelagnia
 
-[BiteFight](https://en.bitefight.gameforge.com/game) CLI browser automation tool
+[BiteFight](https://en.bitefight.gameforge.com/game) CLI browser automation tool, using selenium.
 
 <b>Odaxelagnia</b>: A <ins>paraphilia</ins> in which biting or being bitten leads to sexual arousal.
 
@@ -9,7 +9,7 @@
 ## Details
 
 The program opens a software-controlled browser window and performes the necessary actions in real time. 
-The supported browsers right now are: Microsoft Edge.
+The supported browsers right now are: Google Chrome 92, Microsoft Edge 92, Mozilla Firefox
 
 While the program is in the middle of performing an action, you should not click buttons or links that change the structure of the website on the tab that it is performing, because the program expects to find particular the webpage elements. The browser opened by the program can still be used normally by opening other tabs, and if the program is not performing an action, you can even use the bitefight tab manually. 
 
@@ -31,3 +31,9 @@ The program can automatically handle [<b>manhunts</b>](#ManHunt), <b>grotto figh
 - <b>5) Heal</b>: No input is required, the program heals in the church.
 
 Or you can press 0 to exit the program.
+
+## How to use
+1) Make sure you have [Python](https://www.python.org/downloads/) installed.
+2) Run main.py from inside src folder.
+
+Inside the src folder, there are webdrivers for each browser, if your browser version is not compatible with the existing webdriver, you can download the new webdriver that matches with your browser and replace it. 
