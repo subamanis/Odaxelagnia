@@ -1,3 +1,4 @@
+import logging
 import os
 import threading
 import abc
@@ -12,7 +13,9 @@ from threading import Event
 
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, NoSuchWindowException, WebDriverException
-from selenium.webdriver.chrome.webdriver import WebDriver
+from selenium.webdriver import DesiredCapabilities
+from selenium.webdriver.firefox.webdriver import WebDriver
+from selenium.webdriver.remote.remote_connection import LOGGER
 from selenium.webdriver.remote.webelement import WebElement
 
 
@@ -407,6 +410,7 @@ EDGE_DRIVER = 'msedgedriver.exe'
 CHROME_DRIVER = 'chromedriver.exe'
 FIREFOX_DRIVER = 'geckodriver.exe'
 CLICK_DELAY = 0.12
+LOGGER.setLevel(logging.WARNING)
 driver: WebDriver
 
 debug_mode: bool = False
@@ -615,13 +619,18 @@ def save_browser_preference():
         _driver = None
         browser = None
         if choice == '1':
-            _driver = webdriver.Chrome(CHROME_DRIVER)
+            from selenium.webdriver.chrome.options import Options
+            options = Options()
+            options.headless = True
+            options.add_experimental_option("excludeSwitches", ["enable-logging"])
+            _driver = webdriver.Chrome(options=options)
             browser = Browser.CHROME
         elif choice == '2':
-            _driver = webdriver.Edge(EDGE_DRIVER)
+            capabilities = DesiredCapabilities().EDGE
+            _driver = webdriver.Edge(EDGE_DRIVER,service_log_path='NUL',capabilities=capabilities)
             browser = Browser.EDGE
         elif choice == '3':
-            _driver = webdriver.Firefox(FIREFOX_DRIVER)
+            _driver = webdriver.Firefox(FIREFOX_DRIVER,service_log_path=os.devnull)
             browser = Browser.FIREFOX
         else:
             print('Invalid input. Try again.\n')
