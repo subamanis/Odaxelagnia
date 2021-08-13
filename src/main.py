@@ -1,5 +1,4 @@
-import logging
-import os
+import sys
 import threading
 import abc
 
@@ -12,17 +11,10 @@ from typing import List, Dict
 from threading import Event
 
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException, NoSuchWindowException, WebDriverException
-from selenium.webdriver import DesiredCapabilities
-from selenium.webdriver.firefox.webdriver import WebDriver
-from selenium.webdriver.remote.remote_connection import LOGGER
 from selenium.webdriver.remote.webelement import WebElement
 
-
-class Browser(Enum):
-    CHROME  = 'CHROME'
-    EDGE    = 'EDGE'
-    FIREFOX = 'FIREFOX'
 
 
 class Difficulty(IntEnum):
@@ -395,23 +387,19 @@ class NeutralChoice(StoryChoice):
         return self.calculate_outcomes_value()
 
 
-def read_or_save_browser_preference():
-    if path.exists('files/'+BROWSER_CHOICE_FILE_NAME):
-        return read_browser_file()
-    else:
-        return save_browser_preference()
+
+def create_chrome_web_driver():
+    options = Options()
+    options.add_experimental_option("excludeSwitches", ["enable-logging"])
+    return webdriver.Chrome(executable_path=CHROME_DRIVER, options=options)
 
 
 
 ACCOUNT_DETAILS_FILE_NAME = 'accountDetails.txt'
 ASPECTS_FILE_NAME = 'aspects.txt'
-BROWSER_CHOICE_FILE_NAME = 'browser.txt'
-EDGE_DRIVER = 'msedgedriver.exe'
 CHROME_DRIVER = 'chromedriver.exe'
-FIREFOX_DRIVER = 'geckodriver.exe'
 CLICK_DELAY = 0.12
-LOGGER.setLevel(logging.WARNING)
-driver: WebDriver
+driver = create_chrome_web_driver()
 
 debug_mode: bool = False
 
@@ -427,7 +415,6 @@ def run():
     account = read_or_make_user_account()
     aspect_value_dict = read_or_rank_aspect_values()
     actionRepository = create_action_repository()
-    driver = read_or_save_browser_preference()
 
     print('Logging in...')
     driver.get(account.page_url)
@@ -438,6 +425,8 @@ def run():
         print(login_result.value)
         print('Terminating.')
         return
+
+    sys.stdout.flush()
 
     accept_cookies()
 
@@ -491,7 +480,7 @@ def login(account: Account) -> Result:
     try:
         driver.find_element_by_id('loginName2')
         return Err('Login failed. Credentials are incorrect.')
-    except NoSuchElementException:
+    except Exception:
         return Ok()
 
 
@@ -608,55 +597,6 @@ def save_user_details():
         f.write('\n')
 
     return Account(county, username, password)
-
-
-
-def save_browser_preference():
-    while 1:
-        choice = input('\n1) Chrome   2) Edge   3) Firefox\n'
-                       'Choose your browser preference: ').strip()
-
-        _driver = None
-        browser = None
-        if choice == '1':
-            from selenium.webdriver.chrome.options import Options
-            options = Options()
-            options.headless = True
-            options.add_experimental_option("excludeSwitches", ["enable-logging"])
-            _driver = webdriver.Chrome(options=options)
-            browser = Browser.CHROME
-        elif choice == '2':
-            capabilities = DesiredCapabilities().EDGE
-            _driver = webdriver.Edge(EDGE_DRIVER,service_log_path='NUL',capabilities=capabilities)
-            browser = Browser.EDGE
-        elif choice == '3':
-            _driver = webdriver.Firefox(FIREFOX_DRIVER,service_log_path=os.devnull)
-            browser = Browser.FIREFOX
-        else:
-            print('Invalid input. Try again.\n')
-            continue
-        break
-
-    with open('files/' + BROWSER_CHOICE_FILE_NAME, mode='w') as f:
-        f.write(str(browser.value))
-
-    return _driver
-
-
-def read_browser_file():
-    with open('files/' + BROWSER_CHOICE_FILE_NAME, mode='r') as f:
-        browser = f.readline().strip()
-
-    if browser == str(Browser.CHROME.value):
-        return webdriver.Chrome(CHROME_DRIVER)
-    elif browser == str(Browser.EDGE.value):
-        return webdriver.Edge(EDGE_DRIVER)
-    elif browser == str(Browser.FIREFOX.value):
-        return webdriver.Firefox(FIREFOX_DRIVER)
-    else:
-        print('Browser preference file has invalid data. Lets overwrite it\n')
-        os.remove('files/'+BROWSER_CHOICE_FILE_NAME)
-        return save_browser_preference()
 
 
 def rank_aspect_values():
