@@ -12,6 +12,7 @@ from threading import Event
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.common.exceptions import NoSuchElementException, NoSuchWindowException, WebDriverException
 from selenium.webdriver.remote.webelement import WebElement
 
@@ -399,7 +400,7 @@ ACCOUNT_DETAILS_FILE_NAME = 'accountDetails.txt'
 ASPECTS_FILE_NAME = 'aspects.txt'
 CHROME_DRIVER = 'chromedriver.exe'
 CLICK_DELAY = 0.12
-driver = create_chrome_web_driver()
+driver: WebDriver
 
 debug_mode: bool = False
 
@@ -415,6 +416,7 @@ def run():
     account = read_or_make_user_account()
     aspect_value_dict = read_or_rank_aspect_values()
     actionRepository = create_action_repository()
+    driver = create_chrome_web_driver()
 
     print('Logging in...')
     driver.get(account.page_url)
