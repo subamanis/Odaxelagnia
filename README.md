@@ -33,7 +33,17 @@ The program can automatically handle [<b>manhunts</b>](#ManHunt), <b>grotto figh
 Or you can press 0 to exit the program.
 
 ## How to use
+<b>Before first execution:</b>
 1) Make sure you have [Python](https://www.python.org/downloads/) installed.
-2) Run main.py from inside src folder.
+<br>From a cmd window, run:
+2) python -m venv C:\<path_to_project>\venv
+3) pip install -r C:\<path_to_project>\requirements.txt
+
+  <b>Execution</b> <br>
+From a cmd window, run:
+1) cd C:\<path_to_project>\venv\Scripts
+2) activate.bat
+3) cd ../../src
+4) python main.py
 
 Inside the src folder, there are is the chrome webdriver that corresponds to Chrome 92, if your browser version is not compatible with the existing webdriver, you can download the new webdriver that matches with your browser and replace it. 
