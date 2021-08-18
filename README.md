@@ -37,7 +37,8 @@ Or you can press 0 to exit the program.
 1) Make sure you have [Python](https://www.python.org/downloads/) installed.
 <br>From a cmd window, run:
 2) python -m venv C:\<path_to_project>\venv
-3) pip install -r C:\<path_to_project>\requirements.txt
+3) C:\<path_to_project>\venv\Scripts\activate.bat
+4) pip install -r C:\<path_to_project>\requirements.txt
 
   <b>Execution</b> <br>
 From a cmd window, run:
