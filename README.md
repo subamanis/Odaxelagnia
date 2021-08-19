@@ -35,6 +35,6 @@ Or you can press 0 to exit the program.
 ## How to use
 Make sure you have Python installed in your machine, and you have added it to PATH.
 
-Before first execution run the file "init.bat" once. Then you can run the program every time by only running "run.bat"
+Before first execution run the file "init.bat" once (it may take some seconds). Then you can run the program every time by only running "run.bat"
 
 Inside the src folder, there are is the chrome webdriver that corresponds to Chrome 92, if your browser version is not compatible with the existing webdriver, you can download the new webdriver that matches with your browser and replace it. 
