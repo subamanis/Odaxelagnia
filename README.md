@@ -22,7 +22,7 @@ Both files can be manually altered as long as they retain the same structure.
 
 ## Features
 
-The program can automatically handle [<b>manhunts</b>](#ManHunt), <b>grotto fights</b>, <b>tavern stories</b>, <b>graveyard</b> and <b>healing</b> in the church, according to your input.
+The program can automatically handle <b>manhunts</b>, <b>grotto fights</b>, <b>tavern stories</b>, <b>graveyard</b> and <b>healing</b> in the church, according to your input.
 
 - <b>1) ManHunt</b>: You specify the target (Farm, Village, Small Town,...) and the number of hunts.
 - <b>2) Grotto</b>: You specify the difficulty level and the number of fights.
