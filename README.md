@@ -8,7 +8,7 @@
 
 ## Details
 
-The program opens a software-controlled browser window and performes the necessary actions in real time. 
+The program opens a software-controlled browser window and performs the necessary actions in real time. 
 The only supported browser is Google Chrome 92, due to inability to suppress log messages on others.
 
 While the program is in the middle of performing an action, you should not click buttons or links that change the structure of the website on the tab that it is performing, because the program expects to find particular the webpage elements. The browser opened by the program can still be used normally by opening other tabs, and if the program is not performing an action, you can even use the bitefight tab manually. 
